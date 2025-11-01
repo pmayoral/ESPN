@@ -702,9 +702,10 @@
             // Re-renderizar canales para actualizar el activo
             renderChannels();
 
-            // Cerrar sidebar en móvil
-            if (window.innerWidth <= 768) {
-                toggleSidebar();
+            // Cerrar sidebar en móvil (siempre que esté abierto)
+            const sidebar = document.getElementById('sidebar');
+            if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
             }
         }
 
@@ -831,4 +832,3 @@
     </script>
 </body>
 </html>
-
