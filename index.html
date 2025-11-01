@@ -1,1 +1,834 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sports Streaming - Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100vw;                   
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo {
+            width: 60px;
+            height: auto;
+        }
+
+        /* Sidebar de canales */
+        .sidebar {
+            width: 280px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(255, 0, 0, 0.5);
+            color: #ff4444;
+        }
+
+        .channel-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .channel-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .channel-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 0, 0, 0.5);
+            transform: translateX(5px);
+        }
+
+        .channel-item.active {
+            background: linear-gradient(135deg, rgba(255, 0, 0, 0.3), rgba(255, 100, 0, 0.3));
+            border-color: #ff0000;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+        }
+
+        .channel-logo {
+            width: 50px;
+            height: 50px;
+            object-fit: contain;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 5px;
+        }
+
+        .channel-info {
+            flex: 1;
+        }
+
+        .channel-name {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .channel-status {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .live-indicator {
+            width: 8px;
+            height: 8px;
+            background: #00ff00;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .player-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            background: #000;
+        }
+
+        .info {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px 20px;
+            text-align: center;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #ff0000;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status {
+            background: rgba(0, 200, 0, 0.2);
+            color: #00ff00;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .toggle-sidebar {
+            display: none;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .logo {
+                width: 40px;
+            }
+
+            .player-container {
+                padding: 10px;
+            }
+
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                height: 100vh;
+                z-index: 1000;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .toggle-sidebar {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/512px-ESPN_wordmark.svg.png" alt="Sports" class="logo">
+                <span id="currentChannelName">ESPN 1</span>
+            </h1>
+            <div class="controls">
+                <button class="toggle-sidebar" onclick="toggleSidebar()">📺 Canales</button>
+                <span class="status">● EN VIVO</span>
+                <button class="btn" onclick="reloadStream()">🔄 Recargar</button>
+                <button class="btn" onclick="openFullscreen()">⛶ Pantalla completa</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Sidebar de Canales -->
+            <div class="sidebar" id="sidebar">
+                <div class="sidebar-title">🏆 Canales Deportivos</div>
+                <div class="channel-list" id="channelList"></div>
+            </div>
+
+            <!-- Reproductor -->
+            <div class="player-container" id="playerContainer">
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Cargando canal...</p>
+                </div>
+                <iframe
+                    id="streamFrame"
+                    src=""
+                    allowfullscreen
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+                    onload="hideLoading()"
+                    style="display: none;"
+                ></iframe>
+                <video
+                    id="videoPlayer"
+                    controls
+                    autoplay
+                    muted
+                    playsinline
+                    style="display: none;"
+                ></video>
+            </div>
+        </div>
+
+        <div class="info">
+            📡 <span id="infoText">Streaming deportivo en vivo</span>
+        </div>
+    </div>
+
+    <script>
+        // Lista de canales en MÁXIMA CALIDAD
+        const channels = [
+            // ESPN PREMIUM
+            {
+                id: 1,
+                name: 'ESPN 1 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/espn-1',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/512px-ESPN_wordmark.svg.png',
+                category: '📺 ESPN'
+            },
+            {
+                id: 2,
+                name: 'ESPN 2 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/espn-2',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/ESPN2_logo.svg/512px-ESPN2_logo.svg.png',
+                category: '📺 ESPN'
+            },
+            {
+                id: 3,
+                name: 'ESPN 3 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/espn-3',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/ESPN3_Logo.png/512px-ESPN3_Logo.png',
+                category: '📺 ESPN'
+            },
+            {
+                id: 4,
+                name: 'ESPN 4 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/espn-4',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/512px-ESPN_wordmark.svg.png',
+                category: '📺 ESPN'
+            },
+            {
+                id: 5,
+                name: 'ESPN 5 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/espn-5',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/512px-ESPN_wordmark.svg.png',
+                category: '📺 ESPN'
+            },
+            {
+                id: 6,
+                name: 'ESPN 6 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/espn-6',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/512px-ESPN_wordmark.svg.png',
+                category: '📺 ESPN'
+            },
+            {
+                id: 7,
+                name: 'ESPN 7 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/espn-7',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/512px-ESPN_wordmark.svg.png',
+                category: '📺 ESPN'
+            },
+            {
+                id: 8,
+                name: 'ESPN Premium HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/espn-premium',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/512px-ESPN_wordmark.svg.png',
+                category: '📺 ESPN'
+            },
+            {
+                id: 9,
+                name: 'ESPN Deportes HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/espn-deportes',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/512px-ESPN_wordmark.svg.png',
+                category: '📺 ESPN'
+            },
+
+            // FOX SPORTS PREMIUM
+            {
+                id: 10,
+                name: 'FOX Sports 1 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/fox-sports-1',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Fox_Sports_logo.svg/512px-Fox_Sports_logo.svg.png',
+                category: '🦊 FOX Sports'
+            },
+            {
+                id: 11,
+                name: 'FOX Sports 2 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/fox-sports-2',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Fox_Sports_2_logo.svg/512px-Fox_Sports_2_logo.svg.png',
+                category: '🦊 FOX Sports'
+            },
+            {
+                id: 12,
+                name: 'FOX Sports 3 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/fox-sports-3',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Fox_sports_3_logo.svg/512px-Fox_sports_3_logo.svg.png',
+                category: '🦊 FOX Sports'
+            },
+            {
+                id: 13,
+                name: 'FOX Sports Premium HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/fox-sports-premium',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Fox_Sports_logo.svg/512px-Fox_Sports_logo.svg.png',
+                category: '🦊 FOX Sports'
+            },
+            {
+                id: 14,
+                name: 'FOX Deportes HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/fox-deportes',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Fox_Sports_logo.svg/512px-Fox_Sports_logo.svg.png',
+                category: '🦊 FOX Sports'
+            },
+
+            // DSPORTS
+            {
+                id: 15,
+                name: 'DSports HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/dsports',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/DSports_logo.svg/512px-DSports_logo.svg.png',
+                category: '🎯 DSports'
+            },
+            {
+                id: 16,
+                name: 'DSports 2 HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/dsports-2',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/DSports_logo.svg/512px-DSports_logo.svg.png',
+                category: '🎯 DSports'
+            },
+            {
+                id: 17,
+                name: 'DSports Plus HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/dsports-plus',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/DSports_logo.svg/512px-DSports_logo.svg.png',
+                category: '🎯 DSports'
+            },
+
+            // TNT SPORTS & TYC
+            {
+                id: 18,
+                name: 'TNT Sports HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/tnt-sports',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/TNT_Sports_2021_logo.svg/512px-TNT_Sports_2021_logo.svg.png',
+                category: '⚡ TNT & TyC'
+            },
+            {
+                id: 19,
+                name: 'TNT Sports Premium HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/tnt-sports-premium',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/TNT_Sports_2021_logo.svg/512px-TNT_Sports_2021_logo.svg.png',
+                category: '⚡ TNT & TyC'
+            },
+            {
+                id: 20,
+                name: 'TyC Sports HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/tyc-sports',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/TyC_Sports_logo.svg/512px-TyC_Sports_logo.svg.png',
+                category: '⚡ TNT & TyC'
+            },
+
+            // OTROS
+            {
+                id: 21,
+                name: 'Win Sports Plus HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/win-sports-plus',
+                logo: 'https://i.imgur.com/5MsCag7.png',
+                category: '🌟 Otros'
+            },
+            {
+                id: 22,
+                name: 'GolTV HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/goltv',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/GolTV_logo.svg/512px-GolTV_logo.svg.png',
+                category: '🌟 Otros'
+            },
+            {
+                id: 23,
+                name: 'Gol Perú HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/gol-peru',
+                logo: 'https://i.imgur.com/CpWOOag.png',
+                category: '🌟 Otros'
+            },
+            {
+                id: 24,
+                name: 'Movistar Deportes HD',
+                url: 'https://rojadirectahdtv.com/en-vivo/movistar-deportes',
+                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Movistar_Deportes_logo.svg/512px-Movistar_Deportes_logo.svg.png',
+                category: '🌟 Otros'
+            }
+        ];
+
+        let currentChannel = channels[0];
+
+        // Renderizar lista de canales organizados por categoría
+        function renderChannels() {
+            const channelList = document.getElementById('channelList');
+
+            // Agrupar canales por categoría
+            const categories = {};
+            channels.forEach(channel => {
+                if (!categories[channel.category]) {
+                    categories[channel.category] = [];
+                }
+                categories[channel.category].push(channel);
+            });
+
+            // Renderizar por categorías
+            channelList.innerHTML = Object.entries(categories).map(([category, categoryChannels]) => `
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 14px; font-weight: bold; color: rgba(255, 255, 255, 0.7); margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                        ${category}
+                    </div>
+                    ${categoryChannels.map(channel => `
+                        <div class="channel-item ${currentChannel.id === channel.id ? 'active' : ''}"
+                             data-channel-id="${channel.id}"
+                             onclick="window.changeChannel(${channel.id})"
+                             style="margin-bottom: 8px; cursor: pointer;">
+                            <img src="${channel.logo}" alt="${channel.name}" class="channel-logo" onerror="this.style.display='none'">
+                            <div class="channel-info">
+                                <div class="channel-name">${channel.name}</div>
+                                <div class="channel-status">
+                                    <div class="live-indicator"></div>
+                                    En vivo
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('');
+        }
+
+        // Cambiar de canal - ACTIVACIÓN INMEDIATA CON AUTOPLAY
+        function changeChannel(channelId) {
+            const channel = channels.find(ch => ch.id === channelId);
+            if (!channel) return;
+
+            console.log('Cambiando a canal:', channel.name); // Debug
+
+            currentChannel = channel;
+
+            // Actualizar título inmediatamente
+            document.getElementById('currentChannelName').textContent = channel.name;
+
+            const iframe = document.getElementById('streamFrame');
+            const videoPlayer = document.getElementById('videoPlayer');
+            const loading = document.getElementById('loading');
+
+            // Mostrar loading inmediatamente
+            loading.style.display = 'block';
+
+            // Detectar si es URL m3u8
+            const isM3U8 = channel.url.includes('.m3u8');
+
+            if (isM3U8) {
+                // Usar reproductor de video para m3u8
+                iframe.style.display = 'none';
+                videoPlayer.style.display = 'block';
+
+                // Detener HLS anterior si existe
+                if (window.hlsInstance) {
+                    window.hlsInstance.destroy();
+                }
+
+                if (Hls.isSupported()) {
+                    const hls = new Hls({
+                        enableWorker: true,
+                        lowLatencyMode: true
+                    });
+                    hls.loadSource(channel.url);
+                    hls.attachMedia(videoPlayer);
+                    hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                        videoPlayer.play().catch(err => {
+                            console.log('Error al reproducir:', err);
+                        });
+                        hideLoading();
+                    });
+                    hls.on(Hls.Events.ERROR, function(event, data) {
+                        console.error('Error HLS:', data);
+                        if (data.fatal) {
+                            switch(data.type) {
+                                case Hls.ErrorTypes.NETWORK_ERROR:
+                                    console.log('Error de red, intentando recuperar...');
+                                    hls.startLoad();
+                                    break;
+                                case Hls.ErrorTypes.MEDIA_ERROR:
+                                    console.log('Error de media, intentando recuperar...');
+                                    hls.recoverMediaError();
+                                    break;
+                                default:
+                                    console.log('Error fatal, destruyendo...');
+                                    hls.destroy();
+                                    break;
+                            }
+                        }
+                    });
+                    window.hlsInstance = hls;
+                } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                    // Soporte nativo de Safari
+                    videoPlayer.src = channel.url;
+                    videoPlayer.addEventListener('loadedmetadata', function() {
+                        videoPlayer.play().catch(err => {
+                            console.log('Error al reproducir:', err);
+                        });
+                        hideLoading();
+                    });
+                } else {
+                    console.error('HLS no soportado en este navegador');
+                    hideLoading();
+                }
+            } else {
+                // Usar iframe para URLs normales
+                videoPlayer.style.display = 'none';
+                iframe.style.display = 'block';
+
+                // Detener HLS si existe
+                if (window.hlsInstance) {
+                    window.hlsInstance.destroy();
+                    window.hlsInstance = null;
+                }
+
+                // Remover iframe completamente y recrearlo para forzar autoplay
+                const container = iframe.parentElement;
+                const oldIframe = iframe;
+
+                // Crear nuevo iframe
+                const newIframe = document.createElement('iframe');
+                newIframe.id = 'streamFrame';
+                newIframe.src = channel.url;
+                newIframe.allowFullscreen = true;
+                newIframe.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
+                newIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+                newIframe.style.width = '100%';
+                newIframe.style.height = '100%';
+                newIframe.style.border = 'none';
+                newIframe.style.borderRadius = '10px';
+                newIframe.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.5)';
+                newIframe.style.display = 'block';
+
+                newIframe.onload = function() {
+                    hideLoading();
+                    // Bloquear apertura de ventanas desde el iframe
+                    try {
+                        const iframeWindow = newIframe.contentWindow;
+                        if (iframeWindow) {
+                            iframeWindow.open = function() {
+                                console.log('Bloqueado window.open desde iframe');
+                                return null;
+                            };
+                        }
+                    } catch (e) {
+                        // Error esperado por políticas de seguridad cross-origin
+                        console.log('No se puede acceder al contenido del iframe (normal por seguridad)');
+                    }
+                };
+
+                // Reemplazar iframe
+                container.removeChild(oldIframe);
+                container.appendChild(newIframe);
+            }
+
+            // Actualizar info
+            document.getElementById('infoText').textContent = `Viendo ${channel.name} en vivo`;
+
+            // Re-renderizar canales para actualizar el activo
+            renderChannels();
+
+            // Cerrar sidebar en móvil
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+        }
+
+        function hideLoading() {
+            const loading = document.getElementById('loading');
+            if (loading) {
+                setTimeout(() => {
+                    loading.style.display = 'none';
+                }, 1500);
+            }
+        }
+
+        function reloadStream() {
+            const iframe = document.getElementById('streamFrame');
+            const videoPlayer = document.getElementById('videoPlayer');
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
+            
+            if (videoPlayer.style.display !== 'none') {
+                // Recargar video m3u8
+                if (window.hlsInstance) {
+                    window.hlsInstance.destroy();
+                }
+                if (Hls.isSupported()) {
+                    const hls = new Hls({
+                        enableWorker: true,
+                        lowLatencyMode: true
+                    });
+                    hls.loadSource(currentChannel.url);
+                    hls.attachMedia(videoPlayer);
+                    hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                        videoPlayer.play().catch(err => {
+                            console.log('Error al reproducir:', err);
+                        });
+                        hideLoading();
+                    });
+                    window.hlsInstance = hls;
+                } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                    videoPlayer.src = currentChannel.url;
+                    videoPlayer.addEventListener('loadedmetadata', function() {
+                        videoPlayer.play().catch(err => {
+                            console.log('Error al reproducir:', err);
+                        });
+                        hideLoading();
+                    });
+                }
+            } else {
+                // Recargar iframe
+                iframe.src = iframe.src;
+            }
+        }
+
+        function openFullscreen() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) {
+                elem.msRequestFullscreen();
+            } else if (elem.mozRequestFullScreen) {
+                elem.mozRequestFullScreen();
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+
+        // Hacer changeChannel global para los onclick
+        window.changeChannel = changeChannel;
+
+        // Inicializar
+        renderChannels();
+        changeChannel(1);
+
+        // Event delegation para clicks en canales (backup)
+        document.getElementById('channelList').addEventListener('click', function(e) {
+            const channelItem = e.target.closest('.channel-item');
+            if (channelItem) {
+                const channelId = parseInt(channelItem.getAttribute('data-channel-id'));
+                if (channelId) {
+                    changeChannel(channelId);
+                }
+            }
+        });
+
+        // Ocultar spinner después de 3 segundos como fallback
+        setTimeout(() => {
+            const loading = document.getElementById('loading');
+            if (loading) {
+                loading.style.display = 'none';
+            }
+        }, 3000);
+
+        // Bloquear apertura de nuevas ventanas/pestañas
+        // Interceptar window.open
+        const originalWindowOpen = window.open;
+        window.open = function(...args) {
+            console.log('Bloqueado intento de abrir ventana:', args);
+            return null;
+        };
+
+        // Interceptar eventos de clic que puedan abrir nuevas ventanas
+        document.addEventListener('click', function(e) {
+            const target = e.target;
+            // Si el clic es en un enlace con target="_blank" o target="_new"
+            if (target.tagName === 'A' && (target.target === '_blank' || target.target === '_new')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }, true); // Usar capture phase para interceptar antes
+
+        // Bloquear mensajes postMessage que intenten abrir ventanas
+        window.addEventListener('message', function(e) {
+            // Si el mensaje intenta abrir una ventana, bloquearlo
+            if (e.data && typeof e.data === 'string' && e.data.includes('window.open')) {
+                e.stopPropagation();
+                return false;
+            }
+        }, true);
+    </script>
+</body>
+</html>
 
